@@ -26,11 +26,11 @@ typedef struct  {
 
 Room rooms[5] = {0};
 
-const uint8_t room_mask_offset_in_tiles = 6; // only even number
-const uint8_t room_min_width_in_tiles   = 5;
-const uint8_t room_min_height_in_tiles  = 5;
-const uint8_t room_max_width_in_tiles   = 14;
-const uint8_t room_max_height_in_tiles  = 12;
+const uint8_t room_mask_offset_in_tiles = 4; // only even number
+const uint8_t room_min_width_in_tiles   = 4;
+const uint8_t room_min_height_in_tiles  = 4;
+const uint8_t room_max_width_in_tiles   = 12;
+const uint8_t room_max_height_in_tiles  = 8;
 
 void initialize_tiles(void) {
     for(uint16_t i=0; i<MAP_GRID_X; ++i) {
@@ -42,6 +42,7 @@ void initialize_tiles(void) {
             Map[i][j].type       = 0;
             Map[i][j].room_id    = 0;
             Map[i][j].direction  = 0;
+            Map[i][j].fog        = true;
         }
     }
 }
@@ -56,33 +57,43 @@ void set_room_tiles(Room room, const uint8_t id) {
         for(uint16_t j=(y_start); j<(y_end); ++j) {
             if (i == x_start && j == y_start) {
                 Map[i][j].direction = kNorth + kWest;
+                Map[i][j].type = kWall_NW;
             }
             else if (i == x_end-1 && j == y_end-1) {
                 Map[i][j].direction = kSouth + kEast;
+                Map[i][j].type = kWall_SE;
             }
             else if (j == y_start && i == x_end-1) {
                 Map[i][j].direction = kNorth + kEast;
+                Map[i][j].type = kWall_NE;
             }
             else if (i == x_start && j == y_end-1) {
                 Map[i][j].direction = kSouth + kWest;
+                Map[i][j].type = kWall_SW;
             }
             else if (i == x_start) {
                 Map[i][j].direction = kWest;
+                Map[i][j].type = kWall_W;
             }
             else if (i == x_end-1) {
                 Map[i][j].direction = kEast;
+                Map[i][j].type = kWall_E;
             }
             else if (j == y_start) {
                 Map[i][j].direction = kNorth;
+                Map[i][j].type = kWall_N;
             }
             else if (j == y_end-1) {
                 Map[i][j].direction = kSouth;
+                Map[i][j].type = kWall_S;
             }
-            Map[i][j].type = kRoom;
+            else {
+                Map[i][j].type = kRoom;
+            }
             Map[i][j].room_id   = id;
         }
     }
-    Map[x_start+1][y_start+1].type = kDebugId;
+    // Map[x_start+1][y_start+1].type = kDebugId;
 }
 
 uint16_t generate_rooms(void) {
