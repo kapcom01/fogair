@@ -1,0 +1,5 @@
+Buildfile
+/build
+/raylib-5.5_webassembly
+*.o
+/.vscode
