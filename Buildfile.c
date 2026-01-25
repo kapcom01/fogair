@@ -11,43 +11,76 @@
 #include <utime.h>
 #include <errno.h>
 
+typedef enum {
+    LINUX,
+    MACOS,
+    WINDOWS,
+    TARGETS,
+} Target;
+
+const char *CC[TARGETS];
+const char *compiler_flags[TARGETS];
+const char *linker_flags[TARGETS];
+
+const char *output_dir[TARGETS];
+const char *output_file[TARGETS];
+
 /****************************************************
  * API functions to use inside the build() function *
  * **************************************************/
 
-int compile_modules(void);
-int link_modules(void);
-int create_static_library(void);
+int compile_modules(Target);
+int link_modules(Target);
+int create_static_library(Target);
 
 /*****************************
  *    Build Configuration    *
  * ***************************/
 
-const char CC[] = "cc";
-const char compiler_flags[] = "-std=c99 -g3 "
+// add c source files here
+char *c_sources[] = {
+    "source/game",
+    "source/map",
+};
+
+// set target configuration
+void setup_targets() {
+    // LINUX
+
+    CC[LINUX] = "cc";
+    compiler_flags[LINUX] = "-std=c99 -g3 "
                               "-DPLATFORM_DESKTOP "
                               "-Iassets "
                               "-I/home/kapcom01/Workspace/raylib/src/Build";
-const char linker_flags[] = "-lraylib "
+    linker_flags[LINUX] = "-lraylib "
                             "-lm -L/home/kapcom01/Workspace/raylib/src/Build"; // -lm must be before -lraylib (why?)
 
-const char *c_sources[] = {
-    // add c source files here
-    "source/game",
-    "source/map"
-};
+    output_dir[LINUX] = "build/linux";
+    output_file[LINUX] = "exe";
 
-const char output_dir[] = "build/linux";
-const char output_file[] = "exe";
+    // MACOS
+
+    CC[MACOS] = "clang";
+    compiler_flags[MACOS] = "-std=c99 -g3 -Wno-switch "
+                            "-DPLATFORM_DESKTOP "
+                            "-I assets "
+                            "-I raylib-5.5_macos/include";
+    linker_flags[MACOS] = "-framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL "
+                          "raylib-5.5_macos/lib/libraylib.a";
+
+    output_dir[MACOS] = "build/macos";
+    output_file[MACOS] = "exe";
+}
 
 /****************************************************
  * Use the build() function to build your project   *
  ****************************************************/
 
 int build() {
-    compile_modules();
-    link_modules();
-    return 0;
+    int ret = 0;
+    ret += compile_modules(MACOS);
+    ret += link_modules(MACOS);
+    return ret;
 }
 
 /************************************************
@@ -105,13 +138,14 @@ int self_run(const char *buildfile_exe_name) {
     return system(run_buildfile_command);
 }
 
-int compile_modules(void) {
+int compile_modules(Target t) {
+    int ret = 0;
     for(size_t i = 0; i < sizeof(c_sources)/sizeof(c_sources[0]); i++) {
         char compile_command[1024] = {0};
         snprintf(compile_command, sizeof(compile_command),
                  "%s %s -c %s.c -o %s.o",
-                 CC,
-                 compiler_flags,
+                 CC[t],
+                 compiler_flags[t],
                  c_sources[i],
                  c_sources[i]);
         char delete_command[256] = {0};
@@ -120,45 +154,43 @@ int compile_modules(void) {
                  c_sources[i]);
         system(delete_command);
         printf("[Compiling  ] %s\n", compile_command);
-        system(compile_command);
+        ret += system(compile_command);
     }
-    return 0;
+    return ret;
 }
 
-int link_modules(void) {
-    if ( fopen(output_dir, "r") == NULL ) {
-        mkdir(output_dir, 0755);
+int link_modules(Target t) {
+    if ( fopen(output_dir[t], "r") == NULL ) {
+        mkdir(output_dir[t], 0755);
     }
     char link_command[1024] = {0};
     snprintf(link_command, sizeof(link_command),
              "%s %s -o %s/%s",
-             CC,
-             compiler_flags,
-             output_dir,
-             output_file);
+             CC[t],
+             compiler_flags[t],
+             output_dir[t],
+             output_file[t]);
     for (size_t i = 0; i < sizeof(c_sources)/sizeof(c_sources[0]); i++) {
         strncat(link_command, " ",          strlen(link_command));
         strncat(link_command, c_sources[i], strlen(link_command));
         strncat(link_command, ".o",         strlen(link_command));
     }
     strncat(link_command, " ",          strlen(link_command));
-    strncat(link_command, linker_flags, strlen(link_command));
+    strncat(link_command, linker_flags[t], strlen(link_command));
     printf("[Linking    ] %s\n", link_command);
-    system(link_command);
-    return 0;
+    return system(link_command);
 }
 
-int create_static_library(void) {
+int create_static_library(Target t) {
     char ar_command[1024] = {0};
-    snprintf(ar_command, sizeof(ar_command), "ar rcs %s", output_file);
+    snprintf(ar_command, sizeof(ar_command), "ar rcs %s", output_file[t]);
     for (size_t i=0; i < sizeof(c_sources)/sizeof(c_sources[0]); i++) {
         strncat(ar_command, " ",           strlen(ar_command));
         strncat(ar_command, c_sources[i], strlen(ar_command));
         strncat(ar_command, ".o",         strlen(ar_command));
     }
     printf("[Archiving  ] %s\n", ar_command);
-    system(ar_command);
-    return 0;
+    return system(ar_command);
 }
 
 int main(int argc, char *argv[]) {
@@ -172,5 +204,9 @@ int main(int argc, char *argv[]) {
         return self_run(argv[0]);
     }
 
-    return build();
+    setup_targets();
+
+    int ret = build();
+    printf("[%s] Done (%d)\n", BUILDFILE_NAME, ret);
+    return ret;
 }
