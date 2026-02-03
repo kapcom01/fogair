@@ -2,14 +2,26 @@
 #define _MAP_H_
 
 #include <stdint.h>
-
 #include "raylib.h"
+#include "Tiles.h"
 
+// configurable macros
 #define WINDOW_WIDTH  1280
 #define WINDOW_HEIGHT 720
-#define MAP_TILE_SIZE 16
-#define MAP_GRID_X WINDOW_WIDTH / MAP_TILE_SIZE
-#define MAP_GRID_Y WINDOW_HEIGHT / MAP_TILE_SIZE
+#define MAP_TILE_SIZE 24
+#define ROOMS_COUNT   5
+
+// not configurable macros
+#define MAP_GRID_X ( WINDOW_WIDTH / MAP_TILE_SIZE )
+#define MAP_GRID_Y ( WINDOW_HEIGHT / MAP_TILE_SIZE )
+
+#define PASSAGE_SIZE 3 // dependent on assets
+#define ROOM_MIN_SIZE ( PASSAGE_SIZE + 2 )
+#define ROOM_MIN_DISTANCE 3
+#define SNAPS_SIZE   ( ROOM_MIN_SIZE + ROOM_MIN_DISTANCE )
+#define SNAPS_SIZE_X ( MAP_GRID_X / SNAPS_SIZE )
+#define SNAPS_SIZE_Y ( MAP_GRID_Y / SNAPS_SIZE )
+#define SNAPS_COUNT ( SNAPS_SIZE_X * SNAPS_SIZE_Y )
 
 typedef enum {
     kWall_NW = 1,
@@ -20,13 +32,22 @@ typedef enum {
     kWall_S,
     kWall_SW,
     kWall_W,
+    kPassWall_NW,
+    kPassWall_N,
+    kPassWall_NE,
+    kPassWall_E,
+    kPassWall_SE,
+    kPassWall_S,
+    kPassWall_SW,
+    kPassWall_W,
     kRoom,
-    kPassage,
     kDoor,
-    kDebugId,
+    kStairs,
+    kReserved,
     kPlayer,
-    kTileTypeSize
-} TileType;
+    kDebugId,
+    kTileTextureSize
+} TileTexture;
 
 typedef enum {
     kNorth     = 1,
@@ -41,9 +62,8 @@ typedef enum {
 
 typedef struct {
     Rectangle rec;
-    TileType type;
-    TileDirection direction;
-    uint16_t room_id;
+    TileTexture texture;
+    int room_index;
     bool fog;
 } MapTile;
 

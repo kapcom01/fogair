@@ -1,20 +1,13 @@
 #include <stdint.h>
 
-#include "Tiles.h"
 #include "raylib.h"
 #include "map.h"
 
-const Color MapTileTypeColor[kTileTypeSize] = {
-    RED, // Invalid room type
-    DARKPURPLE,
-    DARKBROWN,
-    GREEN,
-    ORANGE,
-    BLUE,
-};
+#include "debug.c"
+
 
 Texture2D MapTileTypeTextures;
-Rectangle MapTileTypeTexturesRec[kTileTypeSize] = {0};
+Rectangle MapTileTypeTexturesRec[kTileTextureSize] = {0};
 
 struct {
     uint16_t x_in_tiles;
@@ -22,6 +15,8 @@ struct {
     MapTile *map_tile;
     uint16_t steps;
 } player;
+
+void ResetLevel(void);
 
 // WEB_PLATFORM
 void get_input(void);
@@ -34,44 +29,14 @@ void draw_frame(void) {
 
     ClearBackground(BLACK);
 
-    DrawText(TextFormat("Steps: %d", player.steps), 5, 5, 20, RAYWHITE);
+    // DrawText(TextFormat("Steps: %d", player.steps), 5, 5, 20, RAYWHITE);
 
     for(uint16_t i=0; i<MAP_GRID_X; ++i) {
         for (uint16_t j=0; j<MAP_GRID_Y; ++j) {
-            if (Map[i][j].type == 0 || Map[i][j].fog) continue; // Todo(Manolis): Invalid type
-            DrawTexturePro(MapTileTypeTextures, MapTileTypeTexturesRec[Map[i][j].type], Map[i][j].rec, (Vector2){0, 0}, 0, WHITE);
-            /*
-            DrawRectangleRec(Map[i][j].rec, MapTileTypeColor[Map[i][j].type]);
-            DrawRectangleLinesEx(Map[i][j].rec, 1.0f, BLACK);
-            #define DRAW_PARAMS Map[i][j].rec.x+2, Map[i][j].rec.y+1, 7, WHITE
-            if (Map[i][j].type == kDebugId) DrawText(TextFormat("%d", Map[i][j].room_id), DRAW_PARAMS);
-            switch (Map[i][j].direction) { 
-            case kNorth:
-                DrawText("N", DRAW_PARAMS);
-                break;
-            case kSouth:
-                DrawText("S", DRAW_PARAMS);
-                break;
-            case kWest:
-                DrawText("W", DRAW_PARAMS);
-                break;
-            case kEast:
-                DrawText("E", DRAW_PARAMS);
-                break;
-            case kNorthEast:
-                DrawText("NE", DRAW_PARAMS);
-                break;
-            case kSouthEast:
-                DrawText("SE", DRAW_PARAMS);
-                break;
-            case kNorthWest:
-                DrawText("NW", DRAW_PARAMS);
-                break;
-            case kSouthWest:
-                DrawText("SW", DRAW_PARAMS);
-                break;
-            }
-            */
+            if ( Map[i][j].texture == 0 /*|| Map[i][j].fog*/ ) continue;
+            DrawTexturePro(MapTileTypeTextures, MapTileTypeTexturesRec[Map[i][j].texture], Map[i][j].rec, (Vector2){0, 0}, 0, WHITE);
+            // draw_room_index(i, j);
+            // draw_map_grid(i, j);
         }
     }
 
@@ -87,6 +52,13 @@ void InitializeTextures() {
     TilesPng.data = TILES_DATA;
     TilesPng.mipmaps = 1;
     MapTileTypeTextures = LoadTextureFromImage(TilesPng);
+
+    MapTileTypeTexturesRec[0].x = 320;
+    MapTileTypeTexturesRec[0].y = 0;
+    MapTileTypeTexturesRec[0].width = 32;
+    MapTileTypeTexturesRec[0].height = 32;
+
+    // room wall
 
     MapTileTypeTexturesRec[kWall_NW].x = 96;
     MapTileTypeTexturesRec[kWall_NW].y = 0;
@@ -128,23 +100,72 @@ void InitializeTextures() {
     MapTileTypeTexturesRec[kWall_W].width = 32;
     MapTileTypeTexturesRec[kWall_W].height = 32;
 
-    MapTileTypeTexturesRec[kRoom].x = 288;
+    // passage wall
+
+    MapTileTypeTexturesRec[kPassWall_NW].x = 0;
+    MapTileTypeTexturesRec[kPassWall_NW].y = 0;
+    MapTileTypeTexturesRec[kPassWall_NW].width = 32;
+    MapTileTypeTexturesRec[kPassWall_NW].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_N].x = 32;
+    MapTileTypeTexturesRec[kPassWall_N].y = 0;
+    MapTileTypeTexturesRec[kPassWall_N].width = 32;
+    MapTileTypeTexturesRec[kPassWall_N].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_NE].x = 64;
+    MapTileTypeTexturesRec[kPassWall_NE].y = 0;
+    MapTileTypeTexturesRec[kPassWall_NE].width = 32;
+    MapTileTypeTexturesRec[kPassWall_NE].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_E].x = 64;
+    MapTileTypeTexturesRec[kPassWall_E].y = 32;
+    MapTileTypeTexturesRec[kPassWall_E].width = 32;
+    MapTileTypeTexturesRec[kPassWall_E].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_SE].x = 64;
+    MapTileTypeTexturesRec[kPassWall_SE].y = 64;
+    MapTileTypeTexturesRec[kPassWall_SE].width = 32;
+    MapTileTypeTexturesRec[kPassWall_SE].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_S].x = 32;
+    MapTileTypeTexturesRec[kPassWall_S].y = 64;
+    MapTileTypeTexturesRec[kPassWall_S].width = 32;
+    MapTileTypeTexturesRec[kPassWall_S].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_SW].x = 0;
+    MapTileTypeTexturesRec[kPassWall_SW].y = 64;
+    MapTileTypeTexturesRec[kPassWall_SW].width = 32;
+    MapTileTypeTexturesRec[kPassWall_SW].height = 32;
+
+    MapTileTypeTexturesRec[kPassWall_W].x = 0;
+    MapTileTypeTexturesRec[kPassWall_W].y = 32;
+    MapTileTypeTexturesRec[kPassWall_W].width = 32;
+    MapTileTypeTexturesRec[kPassWall_W].height = 32;
+
+    // other
+
+    MapTileTypeTexturesRec[kRoom].x = 352;
     MapTileTypeTexturesRec[kRoom].y = 0;
     MapTileTypeTexturesRec[kRoom].width = 32;
     MapTileTypeTexturesRec[kRoom].height = 32;
 
-    MapTileTypeTexturesRec[kDoor].x = 288;
+    MapTileTypeTexturesRec[kDoor].x = 352;
     MapTileTypeTexturesRec[kDoor].y = 0;
     MapTileTypeTexturesRec[kDoor].width = 32;
     MapTileTypeTexturesRec[kDoor].height = 32;
 
-    MapTileTypeTexturesRec[kPassage].x = 288;
-    MapTileTypeTexturesRec[kPassage].y = 0;
-    MapTileTypeTexturesRec[kPassage].width = 32;
-    MapTileTypeTexturesRec[kPassage].height = 32;
+    MapTileTypeTexturesRec[kStairs].x = 196; // 352 // 480
+    MapTileTypeTexturesRec[kStairs].y = 0;
+    MapTileTypeTexturesRec[kStairs].width = 32;
+    MapTileTypeTexturesRec[kStairs].height = 32;
 
-    MapTileTypeTexturesRec[kPlayer].x = 512;
-    MapTileTypeTexturesRec[kPlayer].y = 64;
+    MapTileTypeTexturesRec[kReserved].x = 480;
+    MapTileTypeTexturesRec[kReserved].y = 64;
+    MapTileTypeTexturesRec[kReserved].width = 32;
+    MapTileTypeTexturesRec[kReserved].height = 32;
+
+    MapTileTypeTexturesRec[kPlayer].x = 256;
+    MapTileTypeTexturesRec[kPlayer].y = 0;
     MapTileTypeTexturesRec[kPlayer].width = 32;
     MapTileTypeTexturesRec[kPlayer].height = 32;
 }
@@ -170,12 +191,12 @@ void SetupPlayer() {
     player.steps = 0;
     for(uint16_t i=0; i<MAP_GRID_X; ++i) {
         for (uint16_t j=0; j<MAP_GRID_Y; ++j) {
-            if ( Map[i][j].room_id == 1
-                && Map[i][j].type == kRoom ) {
+            if ( Map[i][j].room_index == 1
+                && Map[i][j].texture == kRoom ) {
                 player.x_in_tiles = i;
                 player.y_in_tiles = j;
                 player.map_tile = &Map[i][j];
-                player.map_tile->type = kPlayer;
+                player.map_tile->texture = kPlayer;
                 return;
             }
         }
@@ -205,16 +226,18 @@ void MovePlayer(KeyboardKey key) {
         break;
     }
     
-    if ( Map[new_x_in_tiles][new_y_in_tiles].type == kRoom 
-        || Map[new_x_in_tiles][new_y_in_tiles].type == kPassage
-        || Map[new_x_in_tiles][new_y_in_tiles].type == kDoor) {
-        Map[player.x_in_tiles][player.y_in_tiles].type = kRoom; // TODO(Manolis): BUG: Room OR Passage OR Door ???
+    if ( Map[new_x_in_tiles][new_y_in_tiles].texture == kRoom 
+        || Map[new_x_in_tiles][new_y_in_tiles].texture == kDebugId) {
+        Map[player.x_in_tiles][player.y_in_tiles].texture = kRoom; // TODO(Manolis): BUG: Room OR Passage OR Door ???
         player.x_in_tiles = new_x_in_tiles;
         player.y_in_tiles = new_y_in_tiles;
         player.map_tile = &Map[new_x_in_tiles][new_y_in_tiles];
-        player.map_tile->type = kPlayer;
+        player.map_tile->texture = kPlayer;
         player.steps++;
         RevealPlayerSurroundings();
+    }
+    else if ( Map[new_x_in_tiles][new_y_in_tiles].texture == kStairs ) {
+        ResetLevel();
     }
 }
 
@@ -231,18 +254,38 @@ void get_input(void) {
     else if ( IsKeyPressed(KEY_RIGHT) ) {
         MovePlayer(KEY_RIGHT);
     }
+    else if ( IsKeyPressedRepeat(KEY_UP) ) {
+        MovePlayer(KEY_UP);
+    }
+    else if ( IsKeyPressedRepeat(KEY_DOWN) ) {
+        MovePlayer(KEY_DOWN);
+    }
+    else if ( IsKeyPressedRepeat(KEY_LEFT) ) {
+        MovePlayer(KEY_LEFT);
+    }
+    else if ( IsKeyPressedRepeat(KEY_RIGHT) ) {
+        MovePlayer(KEY_RIGHT);
+    }
+    // else if ( IsKeyPressed(KEY_SPACE) ) {
+    //     ResetLevel();
+    // }
     
 }
 
-int main() {
-    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Rogue-like game");
-    SetTargetFPS(60);
-    SetTraceLogLevel(LOG_DEBUG);
-    
+void ResetLevel(void) {
     GenerateRandomMap();
     InitializeTextures();
     SetupPlayer();
     RevealPlayerSurroundings();
+}
+
+int main() {
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "fogair");
+    SetTargetFPS(60);
+    // ToggleFullscreen();
+    SetTraceLogLevel(LOG_DEBUG);
+    
+    ResetLevel();
 
     while (!WindowShouldClose()) {
         draw_frame();

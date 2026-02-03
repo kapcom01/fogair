@@ -1,161 +1,134 @@
-#include <stdint.h>
-
+#include <string.h>
 #include "raylib.h"
 #include "map.h"
+#include "passage.c"
 
 #define ARRAY_SIZE(x)  (sizeof(x) / sizeof((x)[0]))
+#define STATIC_ASSERT(e) typedef char assert_failed[(e) ? 1 : -1]
+
+Rectangle snaps[SNAPS_COUNT] = {0};
+Rectangle rooms[ROOMS_COUNT] = {0};
+
+Rectangle room_shapes_pool[] = {
+    {0, 0, MAP_TILE_SIZE *  5,  5 * MAP_TILE_SIZE}, // 5x5
+    {0, 0, MAP_TILE_SIZE * 13,  5 * MAP_TILE_SIZE}, // 13x5
+    {0, 0, MAP_TILE_SIZE * 21,  5 * MAP_TILE_SIZE}, // 21x5
+    {0, 0, MAP_TILE_SIZE * 21, 13 * MAP_TILE_SIZE}, // 21x13
+    {0, 0, MAP_TILE_SIZE * 13, 13 * MAP_TILE_SIZE}, // 13x13
+    {0, 0, MAP_TILE_SIZE * 21, 21 * MAP_TILE_SIZE}, // 21x21
+    {0, 0, MAP_TILE_SIZE *  5, 13 * MAP_TILE_SIZE}, // 5x13
+    {0, 0, MAP_TILE_SIZE *  5, 21 * MAP_TILE_SIZE}, // 5x21
+    {0, 0, MAP_TILE_SIZE * 13, 21 * MAP_TILE_SIZE}, // 13x21
+};
 
 MapTile Map[MAP_GRID_X][MAP_GRID_Y] = {0};
 
-typedef struct {
-    uint16_t x_in_tiles;
-    uint16_t y_in_tiles;
-} Door;
-
-typedef struct  {
-    Rectangle mask;
-    Door north_door;
-    Door south_door;
-    Door east_door;
-    Door west_door;
-    uint16_t x_in_tiles;
-    uint16_t y_in_tiles;
-    uint8_t width_in_tiles;
-    uint8_t height_in_tiles;
-} Room;
-
-Room rooms[5] = {0};
-
-const uint8_t room_mask_offset_in_tiles = 4; // only even number
-const uint8_t room_min_width_in_tiles   = 4;
-const uint8_t room_min_height_in_tiles  = 4;
-const uint8_t room_max_width_in_tiles   = 12;
-const uint8_t room_max_height_in_tiles  = 8;
-
 void initialize_tiles(void) {
-    for(uint16_t i=0; i<MAP_GRID_X; ++i) {
-        for (uint16_t j=0; j<MAP_GRID_Y; ++j) {
+    for(int i=0; i<MAP_GRID_X; ++i) {
+        for (int j=0; j<MAP_GRID_Y; ++j) {
             Map[i][j].rec.x      = (float) MAP_TILE_SIZE * i;
             Map[i][j].rec.y      = (float) MAP_TILE_SIZE * j;
             Map[i][j].rec.width  = (float) MAP_TILE_SIZE;
             Map[i][j].rec.height = (float) MAP_TILE_SIZE;
-            Map[i][j].type       = 0;
-            Map[i][j].room_id    = 0;
-            Map[i][j].direction  = 0;
+            Map[i][j].texture    = 0;
+            Map[i][j].room_index = -1;
             Map[i][j].fog        = true;
         }
     }
 }
 
-void set_room_tiles(Room room, const uint8_t id) {
-    const uint16_t x_start = room.x_in_tiles;
-    const uint16_t y_start = room.y_in_tiles;
-    const uint16_t x_end   = x_start + room.width_in_tiles;
-    const uint16_t y_end   = y_start + room.height_in_tiles;
+void set_room_tiles(int room_index) {
+    const int x_start = ((int) rooms[room_index].x) / MAP_TILE_SIZE;
+    const int y_start = ((int) rooms[room_index].y) / MAP_TILE_SIZE;
+    const int x_end   = ((int) rooms[room_index].width) / MAP_TILE_SIZE + x_start;
+    const int y_end   = ((int) rooms[room_index].height) / MAP_TILE_SIZE + y_start;
 
-    for(uint16_t i=(x_start); i<(x_end); ++i) {
-        for(uint16_t j=(y_start); j<(y_end); ++j) {
+    for(int i=(x_start); i<(x_end); ++i) {
+        for(int j=(y_start); j<(y_end); ++j) {
             if (i == x_start && j == y_start) {
-                Map[i][j].direction = kNorth + kWest;
-                Map[i][j].type = kWall_NW;
+                Map[i][j].texture = kWall_NW;
             }
             else if (i == x_end-1 && j == y_end-1) {
-                Map[i][j].direction = kSouth + kEast;
-                Map[i][j].type = kWall_SE;
+                Map[i][j].texture = kWall_SE;
             }
             else if (j == y_start && i == x_end-1) {
-                Map[i][j].direction = kNorth + kEast;
-                Map[i][j].type = kWall_NE;
+                Map[i][j].texture = kWall_NE;
             }
             else if (i == x_start && j == y_end-1) {
-                Map[i][j].direction = kSouth + kWest;
-                Map[i][j].type = kWall_SW;
+                Map[i][j].texture = kWall_SW;
             }
             else if (i == x_start) {
-                Map[i][j].direction = kWest;
-                Map[i][j].type = kWall_W;
+                Map[i][j].texture = kWall_W;
             }
             else if (i == x_end-1) {
-                Map[i][j].direction = kEast;
-                Map[i][j].type = kWall_E;
+                Map[i][j].texture = kWall_E;
             }
             else if (j == y_start) {
-                Map[i][j].direction = kNorth;
-                Map[i][j].type = kWall_N;
+                Map[i][j].texture = kWall_N;
             }
             else if (j == y_end-1) {
-                Map[i][j].direction = kSouth;
-                Map[i][j].type = kWall_S;
+                Map[i][j].texture = kWall_S;
             }
             else {
-                Map[i][j].type = kRoom;
+                Map[i][j].texture = kRoom;
             }
-            Map[i][j].room_id   = id;
+            Map[i][j].room_index = room_index;
         }
     }
-    // Map[x_start+1][y_start+1].type = kDebugId;
+    // Map[x_start+1][y_start+1].texture = kDebugId;
 }
 
-uint16_t generate_rooms(void) {
+int generate_rooms(void) {
     int debug_collisions = 0;
-    uint16_t n=0;
+    int n=0;
+
     for (n=0; n<ARRAY_SIZE(rooms);) {
         if (debug_collisions > 300) break; // TODO(Manolis): Fix this INFINITE COLLISION BUG
 
-        const uint16_t offset = (uint16_t) room_mask_offset_in_tiles;
-        
-        Room new_room = {0};
-        
-        new_room.x_in_tiles      = GetRandomValue(0, MAP_GRID_X) + offset/2;
-        new_room.y_in_tiles      = GetRandomValue(0, MAP_GRID_Y) + offset/2;
-        new_room.width_in_tiles  = GetRandomValue(room_min_width_in_tiles, room_max_width_in_tiles);
-        new_room.height_in_tiles = GetRandomValue(room_min_height_in_tiles, room_max_height_in_tiles);
-
-        new_room.mask.x      = (float) ((new_room.x_in_tiles      - offset/2) * MAP_TILE_SIZE);
-        new_room.mask.y      = (float) ((new_room.y_in_tiles      - offset/2) * MAP_TILE_SIZE);
-        new_room.mask.width  = (float) ((new_room.width_in_tiles  + offset)   * MAP_TILE_SIZE);
-        new_room.mask.height = (float) ((new_room.height_in_tiles + offset)   * MAP_TILE_SIZE);
+        int snap  = GetRandomValue(0, SNAPS_COUNT-1);
+        int shape = GetRandomValue(0, ARRAY_SIZE(room_shapes_pool)-1);
+        Rectangle new_room = {0};
+        new_room = room_shapes_pool[shape];
+        new_room.x = snaps[snap].x;
+        new_room.y = snaps[snap].y;
 
         // TODO(Manolis): Find a better solution to avoid collisions
         bool collision = false;
-        for (uint16_t r = n; r > 0; --r) {
-            if (CheckCollisionRecs(new_room.mask, rooms[r-1].mask)) {
+        for (int r = n; r > 0; --r) {
+            if (CheckCollisionRecs(new_room, rooms[r-1])) {
                 collision = true;
                 debug_collisions++;
                 break;
             }
         }
-        if (new_room.mask.x + new_room.mask.width > WINDOW_WIDTH
-                || new_room.mask.y + new_room.mask.height > WINDOW_HEIGHT) {
+        if (new_room.x + new_room.width > WINDOW_WIDTH
+                || new_room.y + new_room.height > WINDOW_HEIGHT) {
             collision = true;
             debug_collisions++;
         }
         if (collision) continue;
         rooms[n] = new_room;
-        TraceLog(LOG_DEBUG, "ROOM %d collisions: %d, (x:%d, y:%d), width: %d, height: %d",
+        TraceLog(LOG_DEBUG, "ROOM %d collisions: %d",
             n+1,
-            debug_collisions,
-            rooms[n].x_in_tiles,
-            rooms[n].y_in_tiles,
-            rooms[n].width_in_tiles,
-            rooms[n].height_in_tiles);
-        set_room_tiles(rooms[n], n+1);
+            debug_collisions);
+        set_room_tiles(n);
         n++;
         debug_collisions = 0;
     }
     return n;
 }
 
-TileDirection get_relative_direction(const uint16_t room_src, const uint16_t room_dst) {
-    const uint16_t src_x = rooms[room_src].x_in_tiles;
-    const uint16_t src_y = rooms[room_src].y_in_tiles;
-    const uint16_t dst_x = rooms[room_dst].x_in_tiles;
-    const uint16_t dst_y = rooms[room_dst].y_in_tiles;
+
+TileDirection calculate_route(const int room_src, const int room_dst) {
+    const int src_x = rooms[room_src].x / MAP_TILE_SIZE;
+    const int src_y = rooms[room_src].y / MAP_TILE_SIZE;
+    const int dst_x = rooms[room_dst].x / MAP_TILE_SIZE;
+    const int dst_y = rooms[room_dst].y / MAP_TILE_SIZE;
     
-    const uint8_t  src_h = rooms[room_src].height_in_tiles;
-    const uint8_t  src_w = rooms[room_src].width_in_tiles;
-    const uint8_t  dst_h = rooms[room_dst].height_in_tiles;
-    const uint8_t  dst_w = rooms[room_dst].width_in_tiles;
+    const int  src_h = rooms[room_src].height / MAP_TILE_SIZE;
+    const int  src_w = rooms[room_src].width  / MAP_TILE_SIZE;
+    const int  dst_h = rooms[room_dst].height / MAP_TILE_SIZE;
+    const int  dst_w = rooms[room_dst].width  / MAP_TILE_SIZE;
 
     TileDirection direction = 0;
 
@@ -220,198 +193,137 @@ TileDirection get_relative_direction(const uint16_t room_src, const uint16_t roo
     return direction;
 }
 
-TileDirection generate_random_door(const uint16_t room_src, TileDirection direction) {
-    const uint16_t x      = rooms[room_src].x_in_tiles;
-    const uint16_t y      = rooms[room_src].y_in_tiles;
-    const uint16_t width  = rooms[room_src].width_in_tiles;
-    const uint16_t height = rooms[room_src].height_in_tiles;
+int create_passage(int from_room, int to_room) {
+    int sx = rooms[from_room].x      / MAP_TILE_SIZE;
+    int sy = rooms[from_room].y      / MAP_TILE_SIZE;
+    int sw = rooms[from_room].width  / MAP_TILE_SIZE;
+    int sh = rooms[from_room].height / MAP_TILE_SIZE;
+    int dx = rooms[to_room].x        / MAP_TILE_SIZE;
+    int dy = rooms[to_room].y        / MAP_TILE_SIZE;
+    int dw = rooms[to_room].width    / MAP_TILE_SIZE;
+    int dh = rooms[to_room].height   / MAP_TILE_SIZE;
 
-    uint16_t door_x, door_y;
+    TileDirection route = calculate_route(from_room, to_room);
 
-    switch (direction) {
+    int new_room_dst = to_room;
+
+    switch (route) {
     case kNorth:
-    case kNorthWest:
-        if ( rooms[room_src].north_door.x_in_tiles ) return kNorth;
-        door_x = x + GetRandomValue(0, width-3) + 1;
-        door_y = y;
+        while (sx < dx) sx += SNAPS_SIZE;
+        new_room_dst = passage_to_north(sx, sy);
         break;
     case kSouth:
-    case kSouthEast:
-        if ( rooms[room_src].south_door.x_in_tiles ) return kSouth;
-        door_x = x + GetRandomValue(0, width-3) + 1;
-        door_y = y + height-1;
-        break;
-    case kEast:
-    case kNorthEast:
-        if ( rooms[room_src].east_door.x_in_tiles ) return kEast;
-        // door_x = x + GetRandomValue(0, width-3) + 1;
-        door_x = x + width-1;
-        door_y = y + GetRandomValue(0, height-3) + 1;
+        sy += sh - 1;
+        while (sx < dx) sx += SNAPS_SIZE;
+        new_room_dst = passage_to_south(sx, sy);
         break;
     case kWest:
-    case kSouthWest:
-        if ( rooms[room_src].west_door.x_in_tiles ) return kWest;
-        // door_x = x + GetRandomValue(0, width-3) + 1;
-        door_x = x;
-        door_y = y + GetRandomValue(0, height-3) + 1;
-    }
+        dx += dw - 1;
+        while (sy < dy) sy += SNAPS_SIZE;
+        new_room_dst = passage_to_west(sx, sy);
+        break;
+    case kEast:
+        sx += sw - 1;
+        while (sy < dy) sy += SNAPS_SIZE;
+        new_room_dst = passage_to_east(sx, sy);
+        break;
 
-    switch (direction) {
-    case kNorth:
     case kNorthWest:
-        rooms[room_src].north_door.x_in_tiles = door_x;
-        rooms[room_src].north_door.y_in_tiles = door_y;
+        // if ( Map[sx+SNAPS_SIZE][sy].room_index == from_room) sx += SNAPS_SIZE;
+        while ( Map[dx][(dy+SNAPS_SIZE)].room_index == to_room ) dy += SNAPS_SIZE;
+        new_room_dst = passage_to_northwest(sx, sy, dy);
         break;
-    case kSouth:
-    case kSouthEast:
-        rooms[room_src].south_door.x_in_tiles = door_x;
-        rooms[room_src].south_door.y_in_tiles = door_y;
-        break;
-    case kEast:
     case kNorthEast:
-        rooms[room_src].east_door.x_in_tiles = door_x;
-        rooms[room_src].east_door.y_in_tiles = door_y;
+        while ( Map[dx][(dy+SNAPS_SIZE)].room_index == to_room ) dy += SNAPS_SIZE;
+        new_room_dst = passage_to_northeast(sx, sy, dy);
         break;
-    case kWest:
     case kSouthWest:
-        rooms[room_src].west_door.x_in_tiles = door_x;
-        rooms[room_src].west_door.y_in_tiles = door_y;
+        sy += sh-1;
+        new_room_dst = passage_to_southwest(sx, sy, dy);
+        break;
+    case kSouthEast:
+        sy += sh-1;
+        new_room_dst = passage_to_southeast(sx, sy, dy);
+        break;
     }
 
-    Map[door_x][door_y].type = kDoor;
-    return Map[door_x][door_y].direction;
+    TraceLog(LOG_DEBUG, "create_passage(%d, %d) => %d", from_room, to_room, new_room_dst);
+    return new_room_dst;
 }
 
-uint16_t set_passage_for_doors(const uint16_t room_src, const uint16_t room_dst) {
-    const uint8_t  width = rooms[room_src].width_in_tiles;
-    const uint8_t  height = rooms[room_src].height_in_tiles;
-    const uint16_t dx = rooms[room_dst].x_in_tiles;
-    const uint16_t dy = rooms[room_dst].y_in_tiles;
-    const uint8_t  dw = rooms[room_dst].width_in_tiles;
-    const uint8_t  dh = rooms[room_dst].height_in_tiles;
+void generate_snaps(void) {
+    TraceLog(LOG_DEBUG, "SNAPS_COUNT: %d", SNAPS_COUNT);
+    int n = 0;
+    for (int y=0; y<SNAPS_SIZE_Y; ++y) {
+        for (int x=0; x<SNAPS_SIZE_X; ++x) {
+            // Map[SNAPS_SIZE * x][SNAPS_SIZE * y].texture = kPlayer;
+            snaps[++n] = Map[SNAPS_SIZE * x][SNAPS_SIZE * y].rec;
 
-    TileDirection door_direction = generate_random_door(
-            room_src, get_relative_direction(room_src, room_dst)
-        );
-
-    uint16_t x = 0;
-    uint16_t y = 0;
-
-    switch (door_direction) {
-    case kNorth:
-        x = rooms[room_src].north_door.x_in_tiles;
-        y = rooms[room_src].north_door.y_in_tiles;
-        while (y > dy+dh) {
-            if ( Map[x][--y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
         }
-        while (x > dx+dw-2) {
-            if ( Map[--x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (x < dx+1) {
-            if ( Map[++x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        --y;
-        break;
-    case kSouth:
-        x = rooms[room_src].south_door.x_in_tiles;
-        y = rooms[room_src].south_door.y_in_tiles;
-        while (y < dy-1) {
-            if ( Map[x][++y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (x > dx+dw-2) {
-            if ( Map[--x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (x < dx+1) {
-            if ( Map[++x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        ++y;
-        break;
-    case kEast:
-        x = rooms[room_src].east_door.x_in_tiles;
-        y = rooms[room_src].east_door.y_in_tiles;
-        while (x < dx-1) {
-            if ( Map[++x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (y > dy+dh-2) {
-            if ( Map[x][--y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (y < dy+1) {
-            if ( Map[x][++y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        ++x;
-        break;
-    case kWest:
-        x = rooms[room_src].west_door.x_in_tiles;
-        y = rooms[room_src].west_door.y_in_tiles;
-        while (x > dx+dw) {
-            if ( Map[--x][y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (y > dy+dh-2) {
-            if ( Map[x][--y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        while (y < dy+1) {
-            if ( Map[x][++y].room_id ) goto end_switch;
-            Map[x][y].type = kPassage;
-        }
-        --x;
-        break;
     }
+}
 
-    end_switch:
-
-    Map[x][y].type = kDoor;
-    switch (Map[x][y].direction) {
-    case kNorth:
-        rooms[room_dst].north_door.x_in_tiles = x;
-        rooms[room_dst].north_door.y_in_tiles = y;
-        break;
-    case kSouth:
-        rooms[room_dst].south_door.x_in_tiles = x;
-        rooms[room_dst].south_door.y_in_tiles = y;
-        break;
-    case kEast:
-        rooms[room_dst].east_door.x_in_tiles = x;
-        rooms[room_dst].east_door.y_in_tiles = y;
-        break;
-    case kWest:
-        rooms[room_dst].west_door.x_in_tiles = x;
-        rooms[room_dst].west_door.y_in_tiles = y;
-        break;
+void test_random_room_snaps(void) {
+    for (int n=0; n<ARRAY_SIZE(rooms); ++n) {
+        int snap  = GetRandomValue(0, SNAPS_COUNT-1);
+        int shape = GetRandomValue(0, ARRAY_SIZE(room_shapes_pool)-1);
+        rooms[n] = room_shapes_pool[shape];
+        rooms[n].x = snaps[snap].x;
+        rooms[n].y = snaps[snap].y;
+        set_room_tiles(n);
     }
-
-    TraceLog(LOG_DEBUG, "passage (%d, %d) -> %d", room_src+1, room_dst+1, Map[x][y].room_id);
-    return Map[x][y].room_id-1;
 }
 
 void GenerateRandomMap(void) {
     initialize_tiles();
-    uint16_t rooms_count = generate_rooms();
+    memset(snaps, 0, ARRAY_SIZE(snaps));
+    memset(rooms, 0, ARRAY_SIZE(rooms));
+    memset(Map,   0, ARRAY_SIZE(Map));
 
+    STATIC_ASSERT(ARRAY_SIZE(snaps) == SNAPS_COUNT);
+
+    generate_snaps();
+    // test_snap_rooms();
+    // test_random_room_snaps();
+
+    int rooms_count = generate_rooms();
+    
     bool rooms_with_passage[ARRAY_SIZE(rooms)] = {false};
 
-    uint16_t connected_rooms = 0;
+    int connected_rooms = 0;
     rooms_with_passage[0] = true;
-    while ( rooms_count != connected_rooms ) {
-        static uint16_t src = 0;
-        static uint16_t dst = 1;
-        src = set_passage_for_doors(src, dst);
-        if (src == dst) dst++;
-
-        rooms_with_passage[src] = true;
+    while ( rooms_count != connected_rooms) {
+        static int src = 0;
+        static int dst = 1;
+        int new_src = create_passage(src, dst);
+        rooms_with_passage[new_src] = true;
         connected_rooms = 0;
-        for (uint16_t i=0; i<rooms_count; i++) {
+        for (int i=0; i<rooms_count; i++) {
             if ( rooms_with_passage[i] == true ) connected_rooms++;
         }
+
+        if (new_src == dst) {
+            src = dst;
+            dst = src+1;
+        } else {
+            src = new_src;
+        }
+
+        if (rooms_with_passage[src] && rooms_with_passage[dst]) {
+            src=0;
+            dst=0;
+            // while ( rooms_with_passage[src] && src < rooms_count-2 ) src++;
+            // dst = src+1;
+            while ( rooms_with_passage[dst] && dst < rooms_count-1 ) dst++;
+        }
+
+        if (dst >= rooms_count) {
+            break;
+        }
     }
+
+    // stairs
+    const int stairs_x = (int) (rooms[rooms_count-1].x) / MAP_TILE_SIZE + 2;
+    const int stairs_y = (int) (rooms[rooms_count-1].y) / MAP_TILE_SIZE + 2;
+    Map[stairs_x][stairs_y].texture = kStairs;
 }
