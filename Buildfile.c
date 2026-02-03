@@ -51,9 +51,8 @@ void setup_targets() {
     compiler_flags[LINUX] = "-std=c99 -g3 "
                               "-DPLATFORM_DESKTOP "
                               "-Iassets "
-                              "-I/home/kapcom01/Workspace/raylib/src/Build";
-    linker_flags[LINUX] = "-lraylib "
-                            "-lm -L/home/kapcom01/Workspace/raylib/src/Build"; // -lm must be before -lraylib (why?)
+                              "-Iraylib-5.5_linux_amd64/include";
+    linker_flags[LINUX] = "-lm raylib-5.5_linux_amd64/lib/libraylib.a";
 
     output_dir[LINUX] = "build/linux";
     output_file[LINUX] = "exe";
@@ -78,8 +77,8 @@ void setup_targets() {
 
 int build() {
     int ret = 0;
-    ret += compile_modules(MACOS);
-    ret += link_modules(MACOS);
+    ret += compile_modules(LINUX);
+    ret += link_modules(LINUX);
     return ret;
 }
 
@@ -161,7 +160,8 @@ int compile_modules(Target t) {
 
 int link_modules(Target t) {
     if ( fopen(output_dir[t], "r") == NULL ) {
-        mkdir(output_dir[t], 0755);
+        fprintf(stderr, "[%s] Error: Build directory does not exist: %s\n", BUILDFILE_NAME, output_dir[t]);
+        return 1;
     }
     char link_command[1024] = {0};
     snprintf(link_command, sizeof(link_command),
