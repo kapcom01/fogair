@@ -292,9 +292,11 @@ void GenerateRandomMap(void) {
 
     int connected_rooms = 0;
     rooms_with_passage[0] = true;
+
+    int src = 0;
+    int dst = 1;
+
     while ( rooms_count != connected_rooms) {
-        static int src = 0;
-        static int dst = 1;
         int new_src = create_passage(src, dst);
         rooms_with_passage[new_src] = true;
         connected_rooms = 0;
