@@ -76,10 +76,8 @@ void setup_targets() {
  ****************************************************/
 
 int build() {
-    int ret = 0;
-    ret += compile_modules(LINUX);
-    ret += link_modules(LINUX);
-    return ret;
+    return compile_modules(LINUX)
+        || link_modules(LINUX);
 }
 
 /************************************************
