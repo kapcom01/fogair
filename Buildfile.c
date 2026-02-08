@@ -126,14 +126,6 @@ int self_rebuild(const char *buildfile_exe_name) {
     return system(rebuild_command);
 }
 
-int self_run(const char *buildfile_exe_name) {
-    char run_buildfile_command[1024] = {0};
-    snprintf(run_buildfile_command, sizeof(run_buildfile_command),
-             "./%s",
-             buildfile_exe_name);
-    return system(run_buildfile_command);
-}
-
 int compile_modules(Target t) {
     int ret = 0;
     for(size_t i = 0; i < sizeof(c_sources)/sizeof(c_sources[0]); i++) {
@@ -204,12 +196,11 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "failed to rebuild \n");
             return err;
         }
-        return self_run(argv[0]);
+        // self-run
+        return system(argv[0]);
     }
 
     setup_targets();
 
-    int ret = build();
-    printf("[%s] Done (%d)\n", BUILDFILE_NAME, ret);
-    return ret;
+    return build();
 }
