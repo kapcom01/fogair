@@ -9,7 +9,7 @@ Prerequisites:
 
 Run:
 ```
-cc -o Buildfile Buildfile.c
+cc -o Buildfile Buildfile.c && ./Buildfile
 ```
 
 # Run game
